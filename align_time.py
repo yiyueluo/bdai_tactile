@@ -2,10 +2,15 @@ import cv2
 import numpy as np
 import pandas as pd
 from utils import *
+import matplotlib as mpl
+
+# reload(matplotlib)
+# matplotlib.use('Agg')
+mpl.use('Agg')
 
 # read videos
 main_path = './data/'
-videos_path = [main_path + '0616_rec02_cam0.mp4', main_path + '0616_rec02_cam1.mp4']
+videos_path = [main_path + '0622_rec01_cam0.mp4', main_path + '0622_rec01_cam1.mp4']
 
 cam0_fps, cam0_n_frames = read_video(videos_path[0])
 cam1_fps, cam1_n_frames = read_video(videos_path[1])
@@ -15,12 +20,20 @@ cam1_ts = np.arange(0, 1/cam1_fps * cam1_n_frames, 1/cam1_fps)
 videos_ts = [cam0_ts, cam1_ts]
 
 # read tactile data 
-tac_fps, tac_ts, tac_data = read_tactile_csv(main_path + '0616_rec02.csv')
+tac_fps, tac_ts, tac_data = read_tactile_csv(main_path + '0622_rec01.csv')
+
+# normalize tactile data
+print ("min:", np.amin(tac_data), 'max:', np.amax(tac_data), 'mean:', np.mean(tac_data))
+lo = np.amax(tac_data)
+hi = 40
+tac_data = (tac_data - lo) / (hi - lo)
+tac_data = np.where(tac_data>1, 1, tac_data)
+print ('normalized.', "min:", np.amin(tac_data), 'max:', np.amax(tac_data))
 
 
 # markers
-tac_marker_frame = 69  #array index
-videos_marker_frame = [605, 980]  #array index
+tac_marker_frame = 180  #array index
+videos_marker_frame = [870, 1156]  #array index
 
 
 # align tactile data with videos
@@ -40,7 +53,15 @@ tac_layout_right = df.to_numpy() #[index 0, index 1, element no.]
 tac_layout = [tac_layout_left, tac_layout_right]
 
 
+#export data
+save_path = main_path + '0622_rec01_left.p'
+export_tac(tac_data, tac_layout_left, save_path)
+save_path = main_path + '0622_rec01_right.p'
+export_tac(tac_data, tac_layout_right, save_path)
+
+
 #generate viz
-save_path = main_path + '0616_rec02_aligned3.avi'
-viz(tac_data, videos_path, videos_aligned_index, tac_layout, save_path, viz=False)
+
+# save_path = main_path + '0622_rec02_aligned.avi'
+# viz(tac_data, videos_path, videos_aligned_index, tac_layout, save_path, viz=False)
 

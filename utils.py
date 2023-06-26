@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import pandas as pd 
 import matplotlib.pyplot as plt
+import pickle
 
 def read_video(path):
     video = cv2.VideoCapture(path)
@@ -50,6 +51,19 @@ def align_ts(tac_marker_frame, videos_marker_frame, tac_ts, videos_ts):
     return videos_aligned_ts, videos_aligned_index 
 
 
+def export_tac(tac, tac_layout, save_path):
+    arr = np.zeros((tac.shape[0], 9, 11)) # frames x 9 x 11
+    for f in range(tac.shape[0]):
+        tac_frame = tac[f, :]
+        for i in range(tac_layout.shape[0]):
+            if tac_layout[i, 2] != -1:
+                arr[f, tac_layout[i, 0], tac_layout[i, 1]] = tac_frame[tac_layout[i, 2]]
+
+    pickle.dump(arr, open(save_path, "wb"))
+    print ('dumped', save_path, arr.shape)
+
+
+
 def viz_tac(tac, tac_layout, viz):
     arr = np.zeros((9, 11)) #viz 9x11
     for i in range(tac_layout.shape[0]):
@@ -72,7 +86,8 @@ def viz_tac(tac, tac_layout, viz):
         cv2.imshow('img', tac_img)
         cv2.waitKey(1)
     
-    plt.close('all')
+    plt.close(fig)
+    plt.clf()
 
     return tac_img
 
@@ -86,7 +101,7 @@ def viz(tac, videos_path, videos_aligned_index, tac_layout, save_path, viz):
     cam0 = cv2.VideoCapture(videos_path[0])
     cam1 = cv2.VideoCapture(videos_path[1])
 
-    for n_frame in range(5000, tac.shape[0]):
+    for n_frame in range(150, tac.shape[0]):
         if n_frame % 500 == 0:
             print (str(n_frame) + '/' + str(tac.shape[0]))
 
@@ -130,7 +145,8 @@ def viz(tac, videos_path, videos_aligned_index, tac_layout, save_path, viz):
             cv2.waitKey(1)
 
         out.write(img)
-        plt.close('all')
+        plt.clf()
+        plt.close(fig)
 
     exit(0)
 

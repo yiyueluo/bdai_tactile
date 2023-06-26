@@ -2,13 +2,13 @@ import cv2
 import numpy as np
 import pandas as pd
 
-path = './data/0616_rec02_cam1.mp4'
+path = './data/0622_rec02_cam0.mp4'
 video = cv2.VideoCapture(path)
 fps = video.get(cv2.CAP_PROP_FPS)
 n_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
 
 
-for frame_no in range(900, 4300):
+for frame_no in range(850, 4300):
     video.set(1,frame_no)
     res, curr_frame = video.read()
     curr_frame = cv2.resize(curr_frame, (720, 400))
