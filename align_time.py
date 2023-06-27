@@ -24,10 +24,10 @@ tac_fps, tac_ts, tac_data = read_tactile_csv(main_path + '0622_rec01.csv')
 
 # normalize tactile data
 print ("min:", np.amin(tac_data), 'max:', np.amax(tac_data), 'mean:', np.mean(tac_data))
-lo = np.amax(tac_data)
+lo = np.amin(tac_data)
 hi = 40
 tac_data = (tac_data - lo) / (hi - lo)
-tac_data = np.where(tac_data>1, 1, tac_data)
+# tac_data = np.where(tac_data>1, 1, tac_data)
 print ('normalized.', "min:", np.amin(tac_data), 'max:', np.amax(tac_data))
 
 

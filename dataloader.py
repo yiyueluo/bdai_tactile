@@ -7,23 +7,24 @@ import pickle
 
 def window_select(data, timestep, window):
     if window ==0:
-        return data[0][timestep-1:timestep, :, :], data[1][timestep-1:timestep, :, :], data[2][timestep-1:timestep, :] 
-    max_len = data.shape[0]
+        return data[0][timestep:timestep+1, :, :], data[1][timestep:timestep+1, :, :], data[2][timestep:timestep+1, :] 
+
     lo = max(0 , timestep-window)
     if lo == 0:
-        return data[0][:window,:,:], data[1][:window,:,:], data[2][:window,:]
+        return data[0][:window,:,:], data[1][:window,:,:], data[2][timestep:timestep+1,:]
     else:
-        return data[0][timestep-window:timestep,:,:], data[1][timestep-window:timestep,:,:], data[2][timestep-window:timestep,:]
+        return data[0][timestep-window:timestep,:,:], data[1][timestep-window:timestep,:,:], data[2][timestep:timestep+1,:]
 
 
 class sample_data(Dataset):
     def __init__(self, path, window):
         self.path = path
         self.log = np.asanyarray(pickle.load(open(self.path + 'log.p', "rb")))
+        # print (self.log)
         self.window = window
 
     def __len__(self):
-        # return self.length
+        # return 4
         return self.log[-1]
 
     def __getitem__(self, idx):

@@ -18,10 +18,11 @@ from torch.utils.tensorboard import SummaryWriter
 parser = argparse.ArgumentParser(description='Process some integers.')
 parser.add_argument('--exp_dir', type=str, default='./dataset/0622/', help='Experiment path')
 parser.add_argument('--exp_name', type=str, default='_0622_test', help='Experiment name')
-parser.add_argument('--lr', type=float, default=1e-4, help='Learning rate')
-parser.add_argument('--batch_size', type=int, default=32, help='Batch size,128')
+parser.add_argument('--lr', type=float, default=1e-3, help='Learning rate')
+parser.add_argument('--batch_size', type=int, default=8, help='Batch size,128')
 parser.add_argument('--weightdecay', type=float, default=1e-4, help='weight decay')
-parser.add_argument('--window', type=int, default=200, help='window around the time step')
+parser.add_argument('--window', type=int, default=10, help='window around the time step')
+parser.add_argument('--cls', type=int, default=5, help='number of class')
 parser.add_argument('--epoch', type=int, default=500, help='The time steps you want to subsample the dataset to,500')
 parser.add_argument('--ckpt', type=str, default='val_online_best', help='loaded ckpt file')
 parser.add_argument('--eval', type=bool, default=False, help='Set true if eval time')
@@ -59,7 +60,7 @@ if __name__ == '__main__':
     torch.manual_seed(0)
     # device = 'cuda:0'
     device = 'cpu'
-    model = tacNet(args.window)  # model
+    model = tacNet(args)  # model
     model.to(device)
     best_train_loss = np.inf
     best_val_loss = np.inf
@@ -68,6 +69,8 @@ if __name__ == '__main__':
     # scheduler = ReduceLROnPlateau(optimizer, 'min', factor=0.8, patience=5, verbose=True)
     pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     criterion = nn.CrossEntropyLoss()
+    # criterion = nn.MSELoss()
+    # criterion = nn.BCELoss()
 
     if args.train_continue:
         checkpoint = torch.load(args.exp_dir + 'ckpts/' + args.ckpt + args.exp_name + '.path.tar')
@@ -93,11 +96,13 @@ if __name__ == '__main__':
 
         bar = ProgressBar(max_value=len(test_dataloader))
         for i_batch, sample_batched in bar(enumerate(test_dataloader, 0)):
-            tactile = torch.tensor(sample_batched[0], dtype=torch.float, device=device)
-            label = torch.tensor(sample_batched[1], dtype=torch.float, device=device)
+            tac_left = torch.tensor(sample_batched[0], dtype=torch.float, device=device)
+            tac_right = torch.tensor(sample_batched[1], dtype=torch.float, device=device)
+            label = torch.tensor(sample_batched[2], dtype=torch.float, device=device)
+            label = torch.squeeze(label)
 
             with torch.set_grad_enabled(False):
-                pred, _ = model(tactile)
+                pred= model(tac_left, tac_right)
 
             act_list = np.concatenate((act_list, act.cpu().data.numpy()), axis=0)
             tactile_list = np.concatenate((tactile_list, tactile.cpu().data.numpy()), axis=0)
@@ -130,13 +135,18 @@ if __name__ == '__main__':
                 tac_left = torch.tensor(sample_batched[0], dtype=torch.float, device=device)
                 tac_right = torch.tensor(sample_batched[1], dtype=torch.float, device=device)
                 label = torch.tensor(sample_batched[2], dtype=torch.float, device=device)
+                label = torch.squeeze(label)
+
+                # print (np.mean(label.cpu().data.numpy()), np.amax(label.cpu().data.numpy()))
 
                 # print(act.size(), tactile.size())
 
                 with torch.set_grad_enabled(True):
-                    pred= model(tac_left, tac_right)
+                    pred = model(tac_left, tac_right)
+                
+                # print (pred.size(), label.size())
 
-                loss = criterion(pred, label) * 100
+                loss = criterion(pred, label) * 10 
                 # print (loss)
 
                 optimizer.zero_grad()
@@ -148,8 +158,9 @@ if __name__ == '__main__':
                 writer.add_scalar('Loss/train_perBatch', loss, epoch * len(train_dataloader) + i_batch)
                 writer.add_scalar('Loss/train_meanSoFar', np.mean(train_loss),
                                   epoch * len(train_dataloader) + i_batch)
-                # pickle.dump([act.cpu().data.numpy(), tactile.cpu().data.numpy(), tactile_pred.cpu().data.numpy()],
-                #             open(args.exp_dir + 'predictions/train_' + str(args.window) + '_' + str(epoch) + '.p', "wb"))
+
+                pickle.dump([tac_left.cpu().data.numpy(), tac_right.cpu().data.numpy(), label.cpu().data.numpy(), pred.cpu().data.numpy()],
+                            open(args.exp_dir + 'predictions/train' + args.exp_name + '.p', "wb"))
 
                 if i_batch % 20 == 0 and i_batch != 0:
                     val_loss_t = []
@@ -173,16 +184,22 @@ if __name__ == '__main__':
                         tac_left = torch.tensor(sample_batched[0], dtype=torch.float, device=device)
                         tac_right = torch.tensor(sample_batched[1], dtype=torch.float, device=device)
                         label = torch.tensor(sample_batched[2], dtype=torch.float, device=device)
+                        label = torch.squeeze(label)
 
                         with torch.set_grad_enabled(False):
-                            pred= model(tac_left, tac_right)
+                            pred = model(tac_left, tac_right)
 
-                        loss = criterion(pred, label) * 100
+                        # print (pred.size(), label.size())
+                        loss = criterion(pred, label) * 10 
+
+                        
+
+                        # print (np.mean(label.cpu().data.numpy()), np.amax(label.cpu().data.numpy()))
 
                         if i_batch % 100 == 0 and i_batch != 0:
                             print("[%d/%d], Loss: %.6f, min: %.6f, mean: %.6f, max: %.6f"% (
-                                i_batch, len(train_dataloader), loss.item(), np.amin(tactile_pred.cpu().data.numpy()),
-                                np.mean(tactile_pred.cpu().data.numpy()), np.amax(tactile_pred.cpu().data.numpy())))
+                                i_batch, len(train_dataloader), loss.item(), np.amin(pred.cpu().data.numpy()),
+                                np.mean(pred.cpu().data.numpy()), np.amax(pred.cpu().data.numpy())))
 
                         val_loss.append(loss.data.item())
                         val_loss_t.append(loss.data.item())
@@ -193,10 +210,9 @@ if __name__ == '__main__':
                         print("new best train loss:", np.mean(train_loss))
                         best_train_loss = np.mean(train_loss)
 
+                        pickle.dump([tac_left.cpu().data.numpy(), tac_right.cpu().data.numpy(), label.cpu().data.numpy(), pred.cpu().data.numpy()],
+                                    open(args.exp_dir + 'predictions/train_best' + args.exp_name + '.p', "wb"))
 
-                        pickle.dump([act.cpu().data.numpy(), tactile.cpu().data.numpy(), tactile_pred.cpu().data.numpy()],
-                                    open(args.exp_dir + 'predictions/train_online_best' + args.exp_name + '.p', "wb"))
-                        # print (tactile, tactile_pred)
 
                     # print ("val_loss:", np.mean(val_loss))
                     if np.mean(val_loss_t) < best_val_loss:
@@ -208,7 +224,7 @@ if __name__ == '__main__':
                             'model_state_dict': model.state_dict(),
                             'optimizer_state_dict': optimizer.state_dict(),
                             'loss': loss, },
-                            args.exp_dir + 'ckpts/val_online_best' + args.exp_name + '.path.tar')
+                            args.exp_dir + 'ckpts/val_best' + args.exp_name + '.path.tar')
 
                 avg_train_loss = np.mean(train_loss)
                 avg_val_loss = np.mean(val_loss)

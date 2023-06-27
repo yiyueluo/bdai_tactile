@@ -44,6 +44,7 @@ seq = [[0, np.int16(ratio*n_rounds)], [np.int16(ratio*n_rounds), n_rounds]]
 
 for p in range(len(phase)):
     count = [0]
+    c = 0
     for nr in range(seq[p][0], seq[p][1]):
         seq_st = extracted_fs[0][0][nr]
         seq_ed = extracted_fs[-1][0][nr]
@@ -51,15 +52,30 @@ for p in range(len(phase)):
         aligned_tactile_left = tac_left[seq_st:seq_ed, :, :]
         aligned_tactile_right = tac_right[seq_st:seq_ed, :, :]
         for nl in range(n_stages):
-            st = extracted_fs[nl][0][nr]
-            ed = extracted_fs[nl+1][0][nr]
+            st = extracted_fs[nl][0][nr] - seq_st
+            ed = extracted_fs[nl+1][0][nr] - seq_st
             aligned_label[st:ed, nl] = 1
+            # print (st, ed)
 
+        # subst = extracted_fs[0][0][nr] - seq_st
+        # subed = extracted_fs[2][0][nr] - seq_st
+        # to_save = [aligned_tactile_left[subst:subed, :, :], aligned_tactile_right[subst:subed, :, :], aligned_label[subst:subed, :2]]
         to_save = [aligned_tactile_left, aligned_tactile_right, aligned_label]
         save_path = dump_path + phase[p] + '/' + str(count[-1]) + '.p'
         pickle.dump(to_save, open(save_path, "wb"))
         print ('dumped', save_path, to_save[0].shape, to_save[1].shape, to_save[2].shape)
-        count.append(to_save[0].shape[0])
+        print (np.amax(to_save[2]))
+        c += to_save[0].shape[0]
+        count.append(c)
+
+        # viz to check
+        # plt.imshow(to_save[2], aspect=0.01)
+        plt.imshow(to_save[0][20], vmin=0, vmax=0.4)
+        plt.show()
+        plt.imshow(to_save[1][20], vmin=0, vmax=0.4)
+        plt.show()
+
+
     pickle.dump(count, open(dump_path + phase[p] + '/log.p', "wb"))
     print (phase[p], 'dataset exported.', "n_frames:", count)
 
