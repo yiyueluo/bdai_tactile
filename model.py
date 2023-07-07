@@ -70,7 +70,9 @@ class tacNet(nn.Module):
 
 
 
-    def forward(self, tac_left, tac_right):
+    def forward(self, tac):
+        tac_left = tac[:, :, :, :11] # B X N X 9 X 11
+        tac_right = tac[:, :, :, 11:]
         #9x11
         left = self.conv_0_left(tac_left) #7x9
         left = self.conv_1_left(left) #5x7

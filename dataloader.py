@@ -38,6 +38,7 @@ class sample_data(Dataset):
         data = pickle.load(open(local_path, "rb"))
 
         tac_left, tac_right, label = window_select(data, local_idx, self.window)
+        tac = np.concatenate((tac_left, tac_right), axis=2)
 
-        return tac_left, tac_right, label
+        return tac, label
 

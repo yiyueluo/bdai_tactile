@@ -72,7 +72,7 @@ def viz_tac(tac, tac_layout, viz):
 
     fig = plt.figure(figsize=(4, 4))
     ax = fig.add_subplot(111)
-    ax.imshow(arr, vmin=0, vmax=2, cmap='viridis')
+    ax.imshow(arr, vmin=0, vmax=1, cmap='viridis')
     if viz:
         plt.show()
 
@@ -92,7 +92,7 @@ def viz_tac(tac, tac_layout, viz):
     return tac_img
 
 
-def viz(tac, videos_path, videos_aligned_index, tac_layout, save_path, viz):
+def viz(tac, videos_path, videos_aligned_index, tac_layout, st, save_path, viz):
     plt.ioff()
     fourcc = cv2.VideoWriter_fourcc('M', 'J', 'P', 'G')
     out = cv2.VideoWriter(save_path, fourcc, 30, (700,400))
@@ -101,7 +101,7 @@ def viz(tac, videos_path, videos_aligned_index, tac_layout, save_path, viz):
     cam0 = cv2.VideoCapture(videos_path[0])
     cam1 = cv2.VideoCapture(videos_path[1])
 
-    for n_frame in range(150, tac.shape[0]):
+    for n_frame in range(st, tac.shape[0]):
         if n_frame % 500 == 0:
             print (str(n_frame) + '/' + str(tac.shape[0]))
 
