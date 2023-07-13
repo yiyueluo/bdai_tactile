@@ -101,7 +101,7 @@ def viz(tac, videos_path, videos_aligned_index, tac_layout, st, save_path, viz):
     cam0 = cv2.VideoCapture(videos_path[0])
     cam1 = cv2.VideoCapture(videos_path[1])
 
-    for n_frame in range(st, tac.shape[0]):
+    for n_frame in range(st-50, tac.shape[0]):
         if n_frame % 500 == 0:
             print (str(n_frame) + '/' + str(tac.shape[0]))
 

@@ -1,0 +1,184 @@
+import scipy.io
+import numpy as np
+import pickle
+from utils import *
+
+
+def load_files(tac_paths, label_path, st_frame):
+    tac_left = pickle.load(open(tac_paths[0], 'rb'))
+    tac_right = pickle.load(open(tac_paths[1], 'rb'))
+    # print ('tactile loaded', tac_left.shape, tac_right.shape)
+
+    mat = scipy.io.loadmat(label_path)
+    label_data = mat['LabelData']
+    # print ('labels loaded:', mat['LabelData'].shape)
+
+    # added missed frames to the label data at the begining
+    com_arr = np.zeros((st_frame, label_data.shape[1]))
+    label_data = np.concatenate((com_arr, label_data), axis=0)
+
+    print ('data loaded', tac_left.shape, tac_right.shape, label_data.shape) # nf x 9 x 11; nf x ncls
+    if label_data.shape[0] != tac_left.shape[0]:
+        print ('check frame counts!!!')
+
+    return tac_left, tac_right, label_data
+
+
+def split_by_mode(tac_left, tac_right, label_data, mode_count):
+    extracted_st = (np.where(label_data[:, 0]==1))[0]
+    extracted_ed = (np.where(label_data[:, -1]==1))[0]
+
+    if extracted_st.shape[0] != extracted_ed.shape[0]:
+        print ("missing time stamp!!!")
+
+    if extracted_st.shape[0] != sum(mode_count):
+        print ("wrong round numbers!!!")
+
+    label_by_mode = []
+    tac_left_by_mode =[]
+    tac_right_by_mode =[]
+    count = 0
+    for m in range(len(mode_count)):
+        count += mode_count[m]
+        label_by_mode.append([])
+        tac_left_by_mode.append([])
+        tac_right_by_mode.append([])
+        for n in range(count-mode_count[m], count):
+            label_by_mode[m].append(label_data[extracted_st[n]:extracted_ed[n], :])
+            tac_left_by_mode[m].append(tac_left[extracted_st[n]:extracted_ed[n], :, :])
+            tac_right_by_mode[m].append(tac_right[extracted_st[n]:extracted_ed[n], :, :])
+
+    return tac_left_by_mode, tac_right_by_mode, label_by_mode # [[arr1, arr2...], [], []]
+
+
+def split_by_stage(label_data): #[arr1, arr2 ...]
+    n_stages = label_data[0].shape[1]
+    n_rounds = len(label_data)
+
+    label = []
+    for r in range(n_rounds):
+        tl = tac_left[r] # arr
+        tr = tac_right[r]
+        l = label_data[r]
+        louput = np.zeros((l.shape[0], l.shape[1]))# [arr1, arr2 ...]
+
+        extracted_fs = [0]
+        for s in range(1, n_stages-1):
+            fs = np.where(l[:, s]==1)[0]
+            if len(fs) == 0:
+                fs = [np.inf]
+            # print (fs)
+            extracted_fs.append(fs[0])
+        extracted_fs.append(l.shape[0])
+
+        extracted_fs_ori = extracted_fs.copy()
+        extracted_fs.sort() #sorted time stamp
+
+        st_index =0
+        ed = 0
+        while ed < l.shape[0]:
+            st = extracted_fs[st_index]
+            ed = extracted_fs[st_index+1] 
+            label_index = extracted_fs_ori.index(extracted_fs[st_index+1]) 
+            louput[st:ed, label_index] = 1
+            st_index += 1
+
+        louput = louput[:, 1:] # remove first label becuase n_stages = n_label - 1
+        label.append(louput) 
+    
+    return label  # [arr1, arr2, ...]
+
+
+def export(tac_left, tac_right, label, label_all, export_count, phase, ratio, save_path):
+    if (len(tac_left) != len(label)) or (len(tac_left) != sum(ratio)):
+        print ('check data length!!!')
+
+    count = 0
+    for p in range(len(phase)):
+        count += ratio[p]
+        for n in range(count-ratio[p], count):
+            to_save = [tac_left[n], tac_right[n], label[n]]
+            path = save_path + phase[p] + '/' + str(export_count[p][-1]) + '.p'
+            pickle.dump(to_save, open(path, "wb"))
+            # print ('dumped', save_path, to_save[0].shape, to_save[1].shape, to_save[2].shape)
+            label_all[p] = np.concatenate((label_all[p], label[n]), axis=0)
+            export_count[p].append(export_count[p][-1] + to_save[0].shape[0])
+    
+    return export_count, label_all
+
+
+
+main_path = './data/processed/01_bolt/'
+task = '_01'
+mode = 1 # free, dominant, non-dominant
+viz = False
+phase = ['train', 'val', 'test'] # 7:2:1
+export_count = [[0], [0], [0]]
+save_path = './dataset/01_bolt/'
+
+
+# read log file
+df = pd.read_csv(main_path + 'log.csv', sep=',', header=0)
+log = df.to_numpy()
+n_file = log.shape[0]
+
+for f in range(n_file):
+    # extract meta data
+    date = str("{:04d}".format(log[f, 0]))
+    p = str("{:02d}".format(log[f, 1]))
+    p += task
+    if log[f, 2] != 0:
+        p += '_'
+        p += str(log[f, 2])
+    
+    # load files
+    tac_left_path = main_path + 'rec' + p + '_left.p'
+    tac_right_path = main_path + 'rec' + p + '_right.p'
+    tac_paths = [tac_left_path, tac_right_path]
+    label_path = main_path + 'videoLabelingSession_rec' + p + '_arr.mat'
+    st_frame = log[f, 6]
+    tac_left, tac_right, label_data = load_files(tac_paths, label_path, st_frame)
+
+    mode_count = [log[f, 3], log[f, 4], log[f, 5]] # free, dominant, non-dominant
+
+    # split by mode
+    tac_left_by_mode, tac_right_by_mode, label_by_mode = split_by_mode(tac_left, tac_right, label_data, mode_count)
+    tac_left = tac_left_by_mode[mode]
+    tac_right = tac_right_by_mode[mode]
+
+    # convert time stamp label to stage label, n_stage = n_label-1
+    label = split_by_stage(label_by_mode[mode])
+
+    if viz:
+        plt.imshow(label[0], aspect=0.01)
+        plt.show()
+
+    # dump as train/val/test set
+    ratio = [log[f, 7], log[f, 8], log[f, 9]]
+
+    # figure out data balancing
+    if f == 0:
+        label_all = [np.zeros((1, label[0].shape[1])), np.zeros((1, label[0].shape[1])), np.zeros((1, label[0].shape[1]))]
+    export_count, label_all = export(tac_left, tac_right, label, label_all, export_count, phase, ratio, save_path)
+
+
+# dump log for each phase
+for p in range(len(phase)):
+    pickle.dump(export_count[p], open(save_path + phase[p] + '/log.p', "wb"))
+    print (phase[p], export_count[p])
+
+# figure out data balancing      
+for i in range(len(label_all)):
+    cls_weight = np.sum(label_all[i]) / np.sum(label_all[i], axis=0)
+    print (cls_weight)
+    sample_weight = []
+    for s in range(1, label_all[i].shape[0]):
+        ind = np.argmax(label_all[i][s, :])
+        sample_weight.append(cls_weight[ind])
+    pickle.dump(sample_weight, open(save_path + phase[i] + '/sample_weight.p', "wb"))
+    print (len(sample_weight))
+
+    # print (phase[i], np.sum(label_all[i], axis=0))
+# print ('frame counts for each stage:', np.sum(label_all, axis=0)) 
+# print ('balance with weight', 1/(np.sum(label_all, axis=0)/np.sum(label_all))/np.sum(1/(np.sum(label_all, axis=0)/np.sum(label_all))))
+

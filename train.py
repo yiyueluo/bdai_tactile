@@ -5,27 +5,28 @@ import torch.optim as optim
 import numpy as np
 import io, os
 import argparse
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler 
 from model import tacNet
 from dataloader import sample_data
+# from sampler import custom_sampler
 import pickle
 import torch
 import cv2
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 from progressbar import ProgressBar
 from torch.utils.tensorboard import SummaryWriter
-import shap
+# import shap
 
 parser = argparse.ArgumentParser(description='Process some integers.')
-parser.add_argument('--exp_dir', type=str, default='./dataset/0622/', help='Experiment path')
-parser.add_argument('--exp_name', type=str, default='_0622_test', help='Experiment name')
+parser.add_argument('--exp_dir', type=str, default='./dataset/01_bolt/', help='Experiment path')
+parser.add_argument('--exp_name', type=str, default='_01_bolt', help='Experiment name')
 parser.add_argument('--lr', type=float, default=1e-3, help='Learning rate')
 parser.add_argument('--batch_size', type=int, default=128, help='Batch size,128')
 parser.add_argument('--weightdecay', type=float, default=1e-4, help='weight decay')
-parser.add_argument('--window', type=int, default=1, help='window around the time step')
-parser.add_argument('--cls', type=int, default=5, help='number of class')
-parser.add_argument('--epoch', type=int, default=20, help='The time steps you want to subsample the dataset to,500')
-parser.add_argument('--ckpt', type=str, default='val_online_best', help='loaded ckpt file')
+parser.add_argument('--window', type=int, default=20, help='window around the time step')
+parser.add_argument('--cls', type=int, default=6, help='number of class')
+parser.add_argument('--epoch', type=int, default=500, help='The time steps you want to subsample the dataset to,500')
+parser.add_argument('--ckpt', type=str, default='val_best_01_bolt.path', help='loaded ckpt file')
 parser.add_argument('--eval', type=bool, default=False, help='Set true if eval time')
 parser.add_argument('--train_continue', type=bool, default=False, help='Set true if eval time')
 args = parser.parse_args()
@@ -36,15 +37,23 @@ if not os.path.exists(args.exp_dir + 'ckpts'):
 if not os.path.exists(args.exp_dir + 'predictions'):
     os.makedirs(args.exp_dir + 'predictions')
 
+w = [0.1790511,  0.13699978, 0.31752904, 0.07061999, 0.01554619, 0.2802539 ]
+
 if not args.eval:
     train_path = args.exp_dir + 'train/'
     train_dataset = sample_data(train_path, args.window)
-    train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=8)
+    w = pickle.load(open(args.exp_dir + 'train/sample_weight.p', "rb"))
+    # print (len(w))
+    train_sampler =  WeightedRandomSampler(w, len(train_dataset), replacement=False)
+    # print (list(train_sampler.probs))
+    train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, sampler=train_sampler, num_workers=8)
     print(len(train_dataset))
 
     val_path = args.exp_dir + 'val/'
     val_dataset = sample_data(val_path, args.window)
-    val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=8)
+    w = pickle.load(open(args.exp_dir + 'val/sample_weight.p', "rb"))
+    val_sampler =  WeightedRandomSampler(w, len(val_dataset), replacement=False)
+    val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, sampler=val_sampler, num_workers=8)
     print(len(val_dataset))
 
 if args.eval:
@@ -68,12 +77,10 @@ if __name__ == '__main__':
 
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weightdecay)
     # scheduler = ReduceLROnPlateau(optimizer, 'min', factor=0.8, patience=5, verbose=True)
-    pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    # pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     criterion = nn.CrossEntropyLoss()
     # criterion = nn.MSELoss()
     # criterion = nn.BCELoss()
-
-
 
 
     if args.train_continue:
@@ -87,11 +94,10 @@ if __name__ == '__main__':
     '''evaluation and optimize'''
     if args.eval:
         eval_loss = []
-        tac_left_list = np.zeros((1, 9, 11))
-        tac_right_list = np.zeros((1, 9, 11))
+        tac_list = np.zeros((1, args.window, 9, 22))
         label_list = np.zeros((1, args.cls))
         pred_list = np.zeros((1, args.cls))
-        checkpoint = torch.load(args.exp_dir + 'ckpts/' + args.ckpt + args.exp_name + '.path.tar')
+        checkpoint = torch.load(args.exp_dir + 'ckpts/' + args.ckpt + '.tar')
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         epochs = checkpoint['epoch']
@@ -101,16 +107,14 @@ if __name__ == '__main__':
 
         bar = ProgressBar(max_value=len(test_dataloader))
         for i_batch, sample_batched in bar(enumerate(test_dataloader, 0)):
-            tac_left = torch.tensor(sample_batched[0], dtype=torch.float, device=device)
-            tac_right = torch.tensor(sample_batched[1], dtype=torch.float, device=device)
-            label = torch.tensor(sample_batched[2], dtype=torch.float, device=device)
+            tac = torch.tensor(sample_batched[0], dtype=torch.float, device=device)
+            label = torch.tensor(sample_batched[1], dtype=torch.float, device=device)
             label = torch.squeeze(label)
 
             with torch.set_grad_enabled(False):
-                pred= model(tac_left, tac_right)
+                pred = model(tac)
 
-            tac_left_list = np.concatenate((tac_left_list, tac_left.cpu().data.numpy()), axis=0)
-            tac_right_list = np.concatenate((tac_right_list, tac_right.cpu().data.numpy()), axis=0)
+            tac_list = np.concatenate((tac_list, tac.cpu().data.numpy()), axis=0)
             label_list = np.concatenate((label_list, label.cpu().data.numpy()), axis=0)
             pred_list = np.concatenate((pred_list, pred.cpu().data.numpy()), axis=0)
 
@@ -118,7 +122,7 @@ if __name__ == '__main__':
 
             eval_loss.append(loss.data.item())
 
-        pickle.dump([act_list, tactile_list, label_list, tactile_pred_list],
+        pickle.dump([tac_list, label_list, pred_list],
                     open(args.exp_dir + 'predictions/eval' + args.exp_name +'.p', "wb"))
 
         print ('loss:', np.mean(eval_loss))
@@ -140,14 +144,12 @@ if __name__ == '__main__':
                 label = torch.squeeze(label)
 
                 # print (np.mean(label.cpu().data.numpy()), np.amax(label.cpu().data.numpy()))
-
                 # print(act.size(), tactile.size())
 
                 with torch.set_grad_enabled(True):
                     pred = model(tac)
                 
                 # print (pred.size(), label.size())
-
                 loss = criterion(pred, label) * 10 
                 # print (loss)
 
@@ -239,18 +241,18 @@ if __name__ == '__main__':
 
             
             # appply SHAP
-            batch = next(iter(train_dataloader))
-            # print (len(batch))
-            img, label = batch
-            print (label.shape)
-            img = torch.tensor(img, dtype=torch.float, device=device)
-            print (np.argmax(label[100:105, 0, :], axis=1))
+            # batch = next(iter(train_dataloader))
+            # # print (len(batch))
+            # img, label = batch
+            # # print (label.shape)
+            # img = torch.tensor(img, dtype=torch.float, device=device)
+            # print (np.argmax(label[100:105, 0, :], axis=1))
 
-            background = img[:100]
-            test_images = img[100:105]
+            # background = img[:100]
+            # test_images = img[100:105]
 
-            e = shap.DeepExplainer(model, background)
-            shap_values = e.shap_values(test_images)
-            shap_numpy = [np.swapaxes(np.swapaxes(s, 1, -1), 1, 2) for s in shap_values]
-            test_numpy = np.swapaxes(np.swapaxes(test_images.numpy(), 1, -1), 1, 2)
-            shap.image_plot(shap_numpy, -test_numpy)
+            # e = shap.DeepExplainer(model, background)
+            # shap_values = e.shap_values(test_images)
+            # shap_numpy = [np.swapaxes(np.swapaxes(s, 1, -1), 1, 2) for s in shap_values]
+            # test_numpy = np.swapaxes(np.swapaxes(test_images.numpy(), 1, -1), 1, 2)
+            # shap.image_plot(shap_numpy, -test_numpy)

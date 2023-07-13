@@ -8,9 +8,19 @@ import matplotlib as mpl
 # matplotlib.use('Agg')
 mpl.use('Agg')
 
+date = '0630'
+n_participant = '01'
+n_task = '01'
+comment = '' #_1
+viz_bool = False
+
+# markers
+tac_marker_frame = 257  #array index
+videos_marker_frame = [893,	1565]  #array index
+
 # read videos
 main_path = './data/'
-videos_path = [main_path + '0707_rec04_01_cam0.mp4', main_path + '0707_rec04_01_cam1.mp4']
+videos_path = [main_path + date + '_rec' + n_participant + '_' + n_task + '_cam0.mp4', main_path + date + '_rec' + n_participant + '_' + n_task + '_cam1.mp4']
 
 cam0_fps, cam0_n_frames = read_video(videos_path[0])
 cam1_fps, cam1_n_frames = read_video(videos_path[1])
@@ -20,20 +30,17 @@ cam1_ts = np.arange(0, 1/cam1_fps * cam1_n_frames, 1/cam1_fps)
 videos_ts = [cam0_ts, cam1_ts]
 
 # read tactile data 
-tac_fps, tac_ts, tac_data = read_tactile_csv(main_path + '0707_rec04_01.csv')
+tac_fps, tac_ts, tac_data = read_tactile_csv(main_path + date + '_rec' + n_participant + '_' + n_task + comment + '.csv')
 
 # normalize tactile data
 print ("min:", np.amin(tac_data), 'max:', np.amax(tac_data), 'mean:', np.mean(tac_data))
 lo = np.amin(tac_data)
+# lo = -1
 hi = 40
-tac_data = (tac_data - lo) / (hi - lo)
-# tac_data = np.where(tac_data>1, 1, tac_data)
+if not viz_bool:
+    tac_data = (tac_data - lo) / (hi - lo)
+    tac_data = np.where(tac_data<0, 0, tac_data)
 print ('normalized.', "min:", np.amin(tac_data), 'max:', np.amax(tac_data))
-
-
-# markers
-tac_marker_frame = 115  #array index
-videos_marker_frame = [687, 492]  #array index
 
 
 # align tactile data with videos
@@ -54,14 +61,14 @@ tac_layout = [tac_layout_left, tac_layout_right]
 
 
 #export data
-save_path = main_path + 'processed/rec04_01_left.p'
+save_path = main_path + 'processed/rec' + n_participant + '_' + n_task + comment + '_left.p'
 export_tac(tac_data, tac_layout_left, save_path)
-save_path = main_path + 'processed/rec04_01_right.p'
+save_path = main_path + 'processed/rec' + n_participant + '_' + n_task + comment + '_right.p'
 export_tac(tac_data, tac_layout_right, save_path)
 
 
 #generate viz
-viz_bool = False
-save_path = main_path + 'processed/rec04_01_aligned.avi'
-viz(tac_data, videos_path, videos_aligned_index, tac_layout, tac_marker_frame, save_path, viz_bool)
+
+# save_path = main_path + 'processed/rec' + n_participant + '_' + n_task + comment + '_aligned.avi' 
+# viz(tac_data, videos_path, videos_aligned_index, tac_layout, tac_marker_frame, save_path, viz_bool)
 

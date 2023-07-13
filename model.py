@@ -25,10 +25,10 @@ class tacNet(nn.Module):
                 
 
         self.conv_1_left = nn.Sequential(
-            nn.Conv2d(32, 64, kernel_size=(3,3),padding=1),
+            nn.Conv2d(32, 32, kernel_size=(3,3),padding=1),
             nn.ReLU())
         self.conv_1_right = nn.Sequential(
-            nn.Conv2d(32, 64, kernel_size=(3,3),padding=1),
+            nn.Conv2d(32, 32, kernel_size=(3,3),padding=1),
             nn.ReLU()) # 5x7
 
         # self.conv_11_left = nn.Sequential(
@@ -47,15 +47,15 @@ class tacNet(nn.Module):
             
 
         self.conv_2_left = nn.Sequential(
-            nn.Conv2d(64, 32, kernel_size=(3,3),padding=1),
+            nn.Conv2d(32, 32, kernel_size=(3,3),padding=1),
             nn.ReLU())
         self.conv_2_right = nn.Sequential(
-            nn.Conv2d(64, 32, kernel_size=(3,3),padding=1),
+            nn.Conv2d(32, 32, kernel_size=(3,3),padding=1),
             nn.ReLU()) #3x5
 
 
         self.cls_0 = nn.Sequential(
-            nn.Linear(6336, 480),
+            nn.Linear(6336, 480), #
             nn.ReLU())
 
         self.cls_1 = nn.Sequential(
