@@ -8,7 +8,6 @@ import argparse
 from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler 
 from model import tacNet
 from dataloader import sample_data
-# from sampler import custom_sampler
 import pickle
 import torch
 import cv2
@@ -18,15 +17,19 @@ from torch.utils.tensorboard import SummaryWriter
 # import shap
 
 parser = argparse.ArgumentParser(description='Process some integers.')
-parser.add_argument('--exp_dir', type=str, default='./dataset/01_bolt/', help='Experiment path')
-parser.add_argument('--exp_name', type=str, default='_01_bolt', help='Experiment name')
+parser.add_argument('--exp_dir', type=str, default='./dataset/03_case_dyn/', help='Experiment path')
+parser.add_argument('--exp_name', type=str, default='_03_case_dyn', help='Experiment name')
 parser.add_argument('--lr', type=float, default=1e-3, help='Learning rate')
-parser.add_argument('--batch_size', type=int, default=128, help='Batch size,128')
+parser.add_argument('--batch_size', type=int, default=32, help='Batch size,128')
 parser.add_argument('--weightdecay', type=float, default=1e-4, help='weight decay')
-parser.add_argument('--window', type=int, default=20, help='window around the time step')
-parser.add_argument('--cls', type=int, default=6, help='number of class')
+parser.add_argument('--window', type=int, default=40, help='window around the time step')
+parser.add_argument('--subsample', type=int, default=1, help='tactile resolution subsample')
+parser.add_argument('--mask', type=bool, default=False, help='Set true if apply mask')
+parser.add_argument('--flip', type=bool, default=False, help='Set true if flip')
+parser.add_argument('--maskpath', type=str, default='./data/common/mask_little_right.p', help='mask') # ./data/common/mask_thumb_right.p #None
+parser.add_argument('--cls', type=int, default=1, help='number of class')
 parser.add_argument('--epoch', type=int, default=500, help='The time steps you want to subsample the dataset to,500')
-parser.add_argument('--ckpt', type=str, default='val_best_01_bolt.path', help='loaded ckpt file')
+parser.add_argument('--ckpt', type=str, default='val_best_03_case.path', help='loaded ckpt file')
 parser.add_argument('--eval', type=bool, default=False, help='Set true if eval time')
 parser.add_argument('--train_continue', type=bool, default=False, help='Set true if eval time')
 args = parser.parse_args()
@@ -37,28 +40,28 @@ if not os.path.exists(args.exp_dir + 'ckpts'):
 if not os.path.exists(args.exp_dir + 'predictions'):
     os.makedirs(args.exp_dir + 'predictions')
 
-w = [0.1790511,  0.13699978, 0.31752904, 0.07061999, 0.01554619, 0.2802539 ]
-
 if not args.eval:
     train_path = args.exp_dir + 'train/'
-    train_dataset = sample_data(train_path, args.window)
-    w = pickle.load(open(args.exp_dir + 'train/sample_weight.p', "rb"))
-    # print (len(w))
-    train_sampler =  WeightedRandomSampler(w, len(train_dataset), replacement=False)
-    # print (list(train_sampler.probs))
-    train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, sampler=train_sampler, num_workers=8)
+    train_dataset = sample_data(train_path, args.window, args.subsample)
+    # w = pickle.load(open(args.exp_dir + 'train/sample_weight.p', "rb"))
+    # train_sampler =  WeightedRandomSampler(w, len(train_dataset), replacement=True)
+    # train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, sampler=train_sampler, num_workers=8)
+    train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=8)
     print(len(train_dataset))
 
     val_path = args.exp_dir + 'val/'
-    val_dataset = sample_data(val_path, args.window)
-    w = pickle.load(open(args.exp_dir + 'val/sample_weight.p', "rb"))
-    val_sampler =  WeightedRandomSampler(w, len(val_dataset), replacement=False)
-    val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, sampler=val_sampler, num_workers=8)
+    val_dataset = sample_data(val_path, args.window, args.subsample)
+    # w = pickle.load(open(args.exp_dir + 'val/sample_weight.p', "rb")) 
+    # val_sampler =  WeightedRandomSampler(w, len(val_dataset), replacement=True)
+    # val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, sampler=val_sampler, num_workers=8)
+    val_dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=True, num_workers=8)
     print(len(val_dataset))
 
 if args.eval:
-    test_path = args.exp_dir + 'test/'
-    test_dataset = sample_data(test_path, args.window)
+    test_path = args.exp_dir + 'val/'
+    test_dataset = sample_data(test_path, args.window, args.subsample)
+    # w = pickle.load(open(args.exp_dir + 'val/sample_weight.p', "rb"))
+    # val_sampler =  WeightedRandomSampler(w, len(val_dataset), replacement=True)
     test_dataloader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=8)
     print(len(test_dataset))
 
@@ -78,10 +81,9 @@ if __name__ == '__main__':
     optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weightdecay)
     # scheduler = ReduceLROnPlateau(optimizer, 'min', factor=0.8, patience=5, verbose=True)
     # pytorch_total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    criterion = nn.CrossEntropyLoss()
-    # criterion = nn.MSELoss()
+    # criterion = nn.CrossEntropyLoss()
+    criterion = nn.MSELoss()
     # criterion = nn.BCELoss()
-
 
     if args.train_continue:
         checkpoint = torch.load(args.exp_dir + 'ckpts/' + args.ckpt + args.exp_name + '.path.tar')
@@ -97,6 +99,8 @@ if __name__ == '__main__':
         tac_list = np.zeros((1, args.window, 9, 22))
         label_list = np.zeros((1, args.cls))
         pred_list = np.zeros((1, args.cls))
+        feature_list = np.zeros((1, 6336))
+
         checkpoint = torch.load(args.exp_dir + 'ckpts/' + args.ckpt + '.tar')
         model.load_state_dict(checkpoint['model_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
@@ -111,18 +115,29 @@ if __name__ == '__main__':
             label = torch.tensor(sample_batched[1], dtype=torch.float, device=device)
             label = torch.squeeze(label)
 
+            if args. flip:
+                tac = torch.flip(tac, dims=[3])
+
+            if args.mask != 'None':
+                mask = pickle.load(open(args.maskpath, "rb"))
+                mask = torch.tensor(mask, dtype=torch.float, device=device)
+                mask = mask[None, None, :, :]
+                mask = mask.repeat([tac.size(dim=0), tac.size(dim=1), 1, 1])
+                tac = tac * mask
+
             with torch.set_grad_enabled(False):
-                pred = model(tac)
+                pred, feature = model(tac, args.eval)
 
             tac_list = np.concatenate((tac_list, tac.cpu().data.numpy()), axis=0)
             label_list = np.concatenate((label_list, label.cpu().data.numpy()), axis=0)
             pred_list = np.concatenate((pred_list, pred.cpu().data.numpy()), axis=0)
+            feature_list = np.concatenate((feature_list, feature.cpu().data.numpy()), axis=0)
 
-            loss = criterion(pred, label) * 10 
+            loss = criterion(pred, label) * 100 
 
             eval_loss.append(loss.data.item())
 
-        pickle.dump([tac_list, label_list, pred_list],
+        pickle.dump([tac_list, label_list, pred_list, feature_list],
                     open(args.exp_dir + 'predictions/eval' + args.exp_name +'.p', "wb"))
 
         print ('loss:', np.mean(eval_loss))
@@ -146,11 +161,18 @@ if __name__ == '__main__':
                 # print (np.mean(label.cpu().data.numpy()), np.amax(label.cpu().data.numpy()))
                 # print(act.size(), tactile.size())
 
+                if args.mask != 'None':
+                    mask = pickle.load(open(args.maskpath, "rb"))
+                    mask = torch.tensor(mask, dtype=torch.float, device=device)
+                    mask = mask[None, None, :, :]
+                    mask = mask.repeat([tac.size(dim=0), tac.size(dim=1), 1, 1])
+                    tac = tac * mask
+
                 with torch.set_grad_enabled(True):
-                    pred = model(tac)
+                    pred = model(tac, args.eval)
                 
                 # print (pred.size(), label.size())
-                loss = criterion(pred, label) * 10 
+                loss = criterion(pred, label) * 100 
                 # print (loss)
 
                 optimizer.zero_grad()
@@ -166,7 +188,7 @@ if __name__ == '__main__':
                 pickle.dump([tac.cpu().data.numpy(), label.cpu().data.numpy(), pred.cpu().data.numpy()],
                             open(args.exp_dir + 'predictions/train' + args.exp_name + '.p', "wb"))
 
-                if i_batch % 20 == 0 and i_batch != 0:
+                if i_batch % 5 == 0 and i_batch != 0:
                     val_loss_t = []
                     n += 1
 
@@ -189,13 +211,22 @@ if __name__ == '__main__':
                         label = torch.tensor(sample_batched[1], dtype=torch.float, device=device)
                         label = torch.squeeze(label)
 
+                        if args.mask != 'None':
+                            mask = pickle.load(open(args.maskpath, "rb"))
+                            mask = torch.tensor(mask, dtype=torch.float, device=device)
+                            mask = mask[None, None, :, :]
+                            mask = mask.repeat([tac.size(dim=0), tac.size(dim=1), 1, 1])
+                            tac = tac * mask
+
                         with torch.set_grad_enabled(False):
-                            pred = model(tac)
+                            pred = model(tac, args.eval)
 
                         # print (pred.size(), label.size())
-                        loss = criterion(pred, label) * 10 
+                        loss = criterion(pred, label) * 100 
 
-                        
+                        pickle.dump([tac.cpu().data.numpy(), label.cpu().data.numpy(), pred.cpu().data.numpy()],
+                            open(args.exp_dir + 'predictions/val' + args.exp_name + '.p', "wb"))
+
                         # print (np.mean(label.cpu().data.numpy()), np.amax(label.cpu().data.numpy()))
 
                         if i_batch % 100 == 0 and i_batch != 0:
@@ -211,15 +242,16 @@ if __name__ == '__main__':
                     if np.mean(train_loss) < best_train_loss:
                         print("new best train loss:", np.mean(train_loss))
                         best_train_loss = np.mean(train_loss)
-
                         pickle.dump([tac.cpu().data.numpy(), label.cpu().data.numpy(), pred.cpu().data.numpy()],
-                                    open(args.exp_dir + 'predictions/train_best' + args.exp_name + '.p', "wb"))
+                            open(args.exp_dir + 'predictions/train_best' + args.exp_name + '.p', "wb"))
 
 
                     # print ("val_loss:", np.mean(val_loss))
                     if np.mean(val_loss_t) < best_val_loss:
                         print("new best val loss:", np.mean(val_loss_t))
                         best_val_loss = np.mean(val_loss_t)
+                        pickle.dump([tac.cpu().data.numpy(), label.cpu().data.numpy(), pred.cpu().data.numpy()],
+                            open(args.exp_dir + 'predictions/val_best' + args.exp_name + '.p', "wb"))
 
                         torch.save({
                             'epoch': epoch,

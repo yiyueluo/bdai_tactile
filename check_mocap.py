@@ -37,11 +37,34 @@ def euler_from_quaternion(x, y, z, w):
      
         return roll_x, pitch_y, yaw_z # in radians
 
+
+def plot_rotated_axes(ax, r, name=None, offset=(0, 0, 0), scale=1):
+    colors = ("#FF6666", "#005533", "#1199EE")  # Colorblind-safe RGB
+    loc = np.array([offset, offset])
+    for i, (axis, c) in enumerate(zip((ax.xaxis, ax.yaxis, ax.zaxis),colors)):
+        axlabel = axis.axis_name
+        axis.set_label_text(axlabel)
+        axis.label.set_color(c)
+        axis.line.set_color(c)
+        axis.set_tick_params(colors=c)
+        line = np.zeros((2, 3))
+        line[1, i] = scale
+        line_rot = r.apply(line)
+        line_plot = line_rot + loc
+        ax.plot(line_plot[:, 0], line_plot[:, 1], line_plot[:, 2], c)
+        text_loc = line[1]*1.2
+        text_loc_rot = r.apply(text_loc)
+        text_plot = text_loc_rot + loc[0]
+        ax.text(*text_plot, axlabel.upper(), color=c, va="center", ha="center")
+    ax.text(*offset, name, color="k", va="center", ha="center", bbox={"fc": "w", "alpha": 0.8, "boxstyle": "circle"})
+
+
+
 # case [xyzw] --> 18, 19, 20, 21 --> z
 # pitcher [xyzw] --> 37, 38, 39, 40 --> x
 # wrench [xyzw] --> 56, 57, 58, 59 --> y, z(90)
 
-path = './data/test/Take 2023-07-11 01.31.53 PM.csv'
+path = './data/0725_rec01_dyn_mocap.csv'
 df = pd.read_csv(path, sep=',', header=6)
 data = df.to_numpy()
 print (data.shape)
@@ -49,28 +72,46 @@ print (data.shape)
 x = []
 y = []
 z = []
-for i in range(data.shape[0]):
-    # r = R.from_quat([data[i, 18], data[i, 19], data[i, 20], data[i, 21]])
-    # r = R.from_quat([data[i,37], data[i, 38], data[i, 39], data[i, 40]])
-    # r = R.from_quat([data[i, 56], data[i, 57], data[i, 58], data[i, 59]])
-    # a = r.as_euler('XYZ', degrees=True)
-    # a = euler_from_quaternion(data[i, 18], data[i, 19], data[i, 20], data[i, 21])
-    # a = euler_from_quaternion(data[i,37], data[i, 38], data[i, 39], data[i, 40])
-    a = euler_from_quaternion(data[i, 56], data[i, 57], data[i, 58], data[i, 59])
+# for i in range(data.shape[0]):
+#     r = R.from_quat([data[i, 18 + 19*3], data[i, 19 + 19*3], data[i, 20+ 19*3], data[i, 21+ 19*3]])
+#     # r = R.from_quat([data[i, 2], data[i, 3], data[i, 4], data[i, 5]])
+#     # r = R.from_quat([data[i,37], data[i, 38], data[i, 39], data[i, 40]])
+#     # r = R.from_quat([data[i, 56], data[i, 57], data[i, 58], data[i, 59]])
+#     a = r.as_euler('xyz', degrees=True)
+#     # a = euler_from_quaternion(data[i, 18], data[i, 19], data[i, 20], data[i, 21])
+#     # a = euler_from_quaternion(data[i,37], data[i, 38], data[i, 39], data[i, 40])
+#     # a = euler_from_quaternion(data[i, 56], data[i, 57], data[i, 58], data[i, 59])
 
-    x.append(a[0])
-    y.append(a[1])
-    z.append(a[2])
 
-    # x.append(data[i, 56])
-    # y.append(data[i, 57])
-    # z.append(data[i, 58])
+#     # x.append(a[0])
+#     # y.append(a[1])
+#     # z.append(a[2])
+
+#     # x.append(data[i, 18 + 19*5])
+#     # y.append(data[i, 19 + 19*5])
+#     # z.append(data[i, 20 + 19*5])
+
 
     
+# fig, axs = plt.subplots(3)
+# axs[0].plot(x)
+# axs[1].plot(y)
+# axs[2].plot(z)
 
-fig, axs = plt.subplots(3)
-axs[0].plot(x)
-axs[0].plot(y)
-axs[0].plot(z)
+# plt.show()
 
-plt.show()
+# ax = plt.figure().add_subplot(projection="3d", proj_type="ortho")
+# for i in range(20000, len(x), 100):
+#     # print (i)
+#     r = R.from_euler("xyz", [x[i], y[i], z[i]], degrees=True)
+#     ax.set(xlim=(-1.25, 1.25), ylim=(-1.25, 1.25), zlim=(-1.25, 1.25))
+#     plot_rotated_axes(ax, r, name="r0", offset=(0, 0, 0))
+# plt.show()
+
+for i in range(6):
+    fig, axs = plt.subplots(3)
+    axs[0].plot(data[:, 18 + 19*i])
+    axs[1].plot(data[:, 19 + 19*i])
+    axs[2].plot(data[:, 20 + 19*i])
+
+    plt.show()

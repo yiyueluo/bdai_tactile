@@ -15,13 +15,21 @@ def window_select(data, timestep, window):
     else:
         return data[0][timestep-window:timestep,:,:], data[1][timestep-window:timestep,:,:], data[2][timestep:timestep+1,:]
 
+def get_subsample(tac, subsample):
+    for x in range(0, tac.shape[1], subsample):
+        for y in range(0, tac.shape[2], subsample):
+            v = np.mean(tac[:, x:x+subsample, y:y+subsample], (1, 2))
+            tac[:, x:x+subsample, y:y+subsample] = v.reshape(-1, 1, 1)
+
+    return tac
 
 class sample_data(Dataset):
-    def __init__(self, path, window):
+    def __init__(self, path, window, subsample):
         self.path = path
         self.log = np.asanyarray(pickle.load(open(self.path + 'log.p', "rb")))
         # print (self.log)
         self.window = window
+        self.subsample = subsample
 
     def __len__(self):
         # return 4
@@ -37,8 +45,12 @@ class sample_data(Dataset):
         local_path = self.path + str(self.log[f]) + '.p'
         data = pickle.load(open(local_path, "rb"))
 
+        # data[2] = np.reshape(data[2], (1, -1))
+
         tac_left, tac_right, label = window_select(data, local_idx, self.window)
         tac = np.concatenate((tac_left, tac_right), axis=2)
 
-        return tac, label
+        if self.subsample > 1:
+            tac = get_subsample(tac, self.subsample)
 
+        return tac, label

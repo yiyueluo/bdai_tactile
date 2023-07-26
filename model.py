@@ -25,32 +25,32 @@ class tacNet(nn.Module):
                 
 
         self.conv_1_left = nn.Sequential(
-            nn.Conv2d(32, 32, kernel_size=(3,3),padding=1),
+            nn.Conv2d(32, 64, kernel_size=(3,3),padding=1),
             nn.ReLU())
         self.conv_1_right = nn.Sequential(
-            nn.Conv2d(32, 32, kernel_size=(3,3),padding=1),
+            nn.Conv2d(32, 64, kernel_size=(3,3),padding=1),
             nn.ReLU()) # 5x7
 
-        # self.conv_11_left = nn.Sequential(
-        #     nn.Conv2d(64, 128, kernel_size=(3,3),padding=1),
-        #     nn.ReLU())
-        # self.conv_11_right = nn.Sequential(
-        #     nn.Conv2d(64, 128, kernel_size=(3,3),padding=1),
-        #     nn.ReLU())
+        self.conv_11_left = nn.Sequential(
+            nn.Conv2d(64, 128, kernel_size=(3,3),padding=1),
+            nn.ReLU())
+        self.conv_11_right = nn.Sequential(
+            nn.Conv2d(64, 128, kernel_size=(3,3),padding=1),
+            nn.ReLU())
 
-        # self.conv_111_left = nn.Sequential(
-        #     nn.Conv2d(128, 64, kernel_size=(3,3),padding=1),
-        #     nn.ReLU())
-        # self.conv_111_right = nn.Sequential(
-        #     nn.Conv2d(128, 64, kernel_size=(3,3),padding=1),
-        #     nn.ReLU())
+        self.conv_111_left = nn.Sequential(
+            nn.Conv2d(128, 64, kernel_size=(3,3),padding=1),
+            nn.ReLU())
+        self.conv_111_right = nn.Sequential(
+            nn.Conv2d(128, 64, kernel_size=(3,3),padding=1),
+            nn.ReLU())
             
 
         self.conv_2_left = nn.Sequential(
-            nn.Conv2d(32, 32, kernel_size=(3,3),padding=1),
+            nn.Conv2d(64, 32, kernel_size=(3,3),padding=1),
             nn.ReLU())
         self.conv_2_right = nn.Sequential(
-            nn.Conv2d(32, 32, kernel_size=(3,3),padding=1),
+            nn.Conv2d(64, 32, kernel_size=(3,3),padding=1),
             nn.ReLU()) #3x5
 
 
@@ -70,7 +70,7 @@ class tacNet(nn.Module):
 
 
 
-    def forward(self, tac):
+    def forward(self, tac, eval):
         tac_left = tac[:, :, :, :11] # B X N X 9 X 11
         tac_right = tac[:, :, :, 11:]
         #9x11
@@ -93,6 +93,9 @@ class tacNet(nn.Module):
 
         output = torch.cat((left, right), 1)
 
+        if eval:
+            feature = torch.clone(output)
+
         output = self.cls_0(output)
         output = self.cls_1(output)
         output = self.cls_2(output)
@@ -101,4 +104,9 @@ class tacNet(nn.Module):
 
         # print (output.shape, torch.sum(output))
 
-        return output
+        if eval:
+            return output, feature
+        else:
+            return output
+
+    

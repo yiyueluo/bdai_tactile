@@ -8,15 +8,15 @@ import matplotlib as mpl
 # matplotlib.use('Agg')
 mpl.use('Agg')
 
-date = '0630'
-n_participant = '01'
-n_task = '01'
-comment = '' #_1
+date = '0707'
+n_participant = '06'
+n_task = '02'
+comment = '_2' #_1
 viz_bool = False
 
 # markers
-tac_marker_frame = 257  #array index
-videos_marker_frame = [893,	1565]  #array index
+tac_marker_frame = 68  #array index
+videos_marker_frame = [9537,	9323]  #array index
 
 # read videos
 main_path = './data/'
@@ -34,8 +34,8 @@ tac_fps, tac_ts, tac_data = read_tactile_csv(main_path + date + '_rec' + n_parti
 
 # normalize tactile data
 print ("min:", np.amin(tac_data), 'max:', np.amax(tac_data), 'mean:', np.mean(tac_data))
-lo = np.amin(tac_data)
-# lo = -1
+# lo = np.amin(tac_data)
+lo = -1
 hi = 40
 if not viz_bool:
     tac_data = (tac_data - lo) / (hi - lo)
